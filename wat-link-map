@@ -1,0 +1,87 @@
+#!/usr/bin/env python3
+
+import sys
+import fileinput
+import json
+import urllib.parse
+
+# Parse a WARC-WAT file and yield the hosts in the form (hostname, ldata)
+# where ldata is a dict of {hostname -> count) for outgoing links
+def aggregateWatLinks(filename):
+    hosts = dict()
+    for jsondata in parseWatFile(filename):
+        for src,tgt in parseWatJSON(jsondata):
+            ldata = hosts.setdefault(src, dict())
+            ldata[tgt] = ldata.get(tgt, 0) + 1
+            if len(hosts) > 3000:
+                for item in hosts.items(): yield item
+                hosts.clear()
+    for item in hosts.items(): yield item
+
+# Parse a WARC-WAT file and yield the JSON metadata payloads
+def parseWatFile(filename):
+    lineCount = 0
+    warcCount = 0
+    warc = 0 # 0 = no record open, 1 = in record header, 2 = in record body
+    warcJSON = False
+    jsonCount = 0
+    for line in fileinput.input([filename]):
+        lineCount += 1
+        if lineCount % 50000 == 0: print('Line %5dk' % (lineCount/1000), file=sys.stderr)
+        if line == '\n' or line == '\r\n':
+            if warc == 1:
+                warc = 2
+            elif warc == 2:
+                warcCount += 1
+                warc = 0
+                warcJSON = False
+        else:
+            if warc == 0: 
+                warc = 1
+            if warc == 1 and line.startswith('Content-Type: application/json'):
+                warcJSON = True
+            elif warc == 2 and warcJSON:
+                jsonCount += 1
+                yield line
+    fileinput.close()
+
+# Parse a WAT JSON payload and yield all outgoing links from response payloads
+def parseWatJSON(jsonPayload):
+    try:
+        payload = json.loads(jsonPayload)
+        envelope = payload['Envelope']
+        meta = envelope['WARC-Header-Metadata']
+        if meta['Content-Type'] != 'application/http; msgtype=response': return
+        srchost = parseHost(meta['WARC-Target-URI'])
+        if srchost == None: return
+        respmeta = envelope['Payload-Metadata']['HTTP-Response-Metadata']
+        if respmeta['Response-Message']['Status'] != '200': return
+        if respmeta['Headers'].get('Content-Type') != 'text/html': return
+        alinks = respmeta['HTML-Metadata'].get('Links', [])
+        hlinks = respmeta['HTML-Metadata'].get('Head', {}).get('Link', [])
+        for link in alinks + hlinks:
+            u = link.get('url')
+            if u == None: continue
+            tgthost = parseHost(u)
+            if tgthost == None or tgthost == srchost: continue
+            yield (srchost, tgthost)
+    except Exception as e:
+        print(e, file=sys.stderr)
+
+# Parse host name out of a url
+def parseHost(urlstr):
+    try:
+        url = urllib.parse.urlparse(urlstr)
+        if url.hostname == None: return None
+        else: return url.hostname
+    except Exception as e:
+        print(e, file=sys.stderr)
+        return None
+
+# read input and dump output
+if __name__ == "__main__":
+    for src,ldata in aggregateWatLinks('-'):
+        print(src + ''.join(
+            ', ' + tgt + ': ' + str(cnt) for tgt,cnt in ldata.items() 
+        ))
+    
