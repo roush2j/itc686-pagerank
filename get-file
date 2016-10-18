@@ -1,0 +1,10 @@
+#! /bin/sh
+
+# Arg1 should specify a path file
+# Arg2 should specify an integer line number
+
+snip=`sed "$2!d;q" "$1"`
+fname=`echo "$snip" | rev | cut -d'/' -f1 | rev | cut -d'.' -f1-5`
+
+curl "https://commoncrawl.s3.amazonaws.com/$snip" >"$fname.gz"
+gunzip "$fname.gz"

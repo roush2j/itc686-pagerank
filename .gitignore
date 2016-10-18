@@ -1,0 +1,13 @@
+
+# Heavyweight documents
+*.odt
+*.pdf
+
+# Raw data
+*.paths.txt
+*.warc.wat
+*.warc.wet
+*.warc
+
+# Generated data
+*.links

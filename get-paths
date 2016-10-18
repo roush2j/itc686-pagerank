@@ -1,0 +1,11 @@
+#! /bin/sh
+
+# Arg1 should specify a week in the form YYYY-WW, where weeks are numbered 1-52
+# Arg2 should be 
+#   'segment' - ?
+#   'warc' - raw response data
+#   'wat' - metadata extracts
+#   'wet' - text extracts
+
+curl "https://commoncrawl.s3.amazonaws.com/crawl-data/CC-MAIN-$1/$2.paths.gz" \
+    | funzip >"CC-MAIN-$1-$2.paths.txt"
