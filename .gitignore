@@ -11,3 +11,6 @@
 
 # Generated data
 *.links
+
+# Python environment
+env/
