@@ -1,10 +1,11 @@
 #! /bin/sh
 
-# Arg1 should specify a path file
-# Arg2 should specify an integer line number
+# stdin should specify the partial path of the file
+# e.g. "crawl-data/CC-MAIN-2016-36/segments/1471982290442.1/wat/CC-MAIN-20160823195810-00000-ip-10-153-172-175.ec2.internal.warc.gz"
 
-snip=`sed "$2!d;q" "$1"`
-fname=`echo "$snip" | rev | cut -d'/' -f1 | rev | cut -d'.' -f1-5`
-
-curl "https://commoncrawl.s3.amazonaws.com/$snip" >"$fname.gz"
-gunzip "$fname.gz"
+read -e path
+dir=`dirname "$path"`
+echo "$dir"
+mkdir -p "$dir"
+curl "https://commoncrawl.s3.amazonaws.com/$path" >"$path"
+gunzip -dk "$path"

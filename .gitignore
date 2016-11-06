@@ -4,6 +4,8 @@
 *.pdf
 
 # Raw data
+*.paths
+*.paths.gz
 *.paths.txt
 *.paths.txt.gz
 *.warc.wat

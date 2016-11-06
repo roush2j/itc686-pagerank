@@ -6,9 +6,9 @@
 #   'warc' - raw response data
 #   'wat' - metadata extracts
 #   'wet' - text extracts
+# Arg3 should specify an integer line number
 
 pathdir="crawl-data/CC-MAIN-$1"
-pathfile="$2.paths.gz"
-mkdir -p "$pathdir"
-curl "https://commoncrawl.s3.amazonaws.com/$pathdir/$pathfile" >"$pathdir/$pathfile"
-gunzip -dk "$pathdir/$pathfile"
+pathfile="$2.paths"
+snip=`sed "$3!d;q" "$pathdir/$pathfile"`
+echo "$snip"
