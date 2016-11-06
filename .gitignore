@@ -5,12 +5,17 @@
 
 # Raw data
 *.paths.txt
+*.paths.txt.gz
 *.warc.wat
+*.warc.wat.gz
 *.warc.wet
+*.warc.wet.gz
 *.warc
+*.warc.gz
 
 # Generated data
 *.links
 
 # Python environment
 env/
+*.pyc
