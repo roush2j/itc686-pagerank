@@ -1,0 +1,11 @@
+# Here is the cmd line to run "inline", meaning locally
+# Note the input file wat.paths.10 which has just 10 lines
+python watlinks-mrjob.py --no-output --output-dir out \
+    < crawl-data/CC-MAIN-2016-36/wat.paths.10
+
+# Here is the cmd line I am trying to run on Hadoop
+# Note the --setup flag which attempts to 1. copy requirements.txt and 2. run pip install
+# Make sure to remove the "out" directory from HDFS between runs or the job will fail    
+python watlinks-mrjob.py --no-output --output-dir out \
+    --setup "pip install --user -r requirements.txt#" -r hadoop \
+     < crawl-data/CC-MAIN-2016-36/wat.paths.10
