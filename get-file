@@ -8,4 +8,6 @@ dir=`dirname "$path"`
 echo "$dir"
 mkdir -p "$dir"
 curl "https://commoncrawl.s3.amazonaws.com/$path" >"$path"
-gunzip -dk "$path"
+cp "$path" "$path.BAK"
+gunzip -d "$path"
+mv "$path.BAK" "$path"
