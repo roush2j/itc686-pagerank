@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+
+    <title>Implementing PageRank</title>
+    <meta name="description" content="Term Project, ITC 686 Fall 2016">
+    <meta name="author" content="John Roush and Neeraj Rajesh">
+
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
+
+    <link rel="stylesheet" href="reveal.js-3.2.0/css/reveal.css">
+    <link rel="stylesheet" href="reveal.js-3.2.0/css/theme/serif.css" id="theme">
+
+    <!-- Code syntax highlighting -->
+    <link rel="stylesheet" href="reveal.js-3.2.0/css/highlight.github.css">
+
+    <!-- Printing and PDF exports
+        To print: 
+            add "?print-pdf" to the url.  
+            the rendered HTML may appear to overlap; this is normal.
+            set the page size to the desired output aspect ratio (e.g. landscape)
+            adjust output margins to 0
+            print
+    -->
+    <script>
+        var link = document.createElement( 'link' );
+        link.rel = 'stylesheet';
+        link.type = 'text/css';
+        document.printing = window.location.search.match( /print-pdf/gi );
+        link.href = document.printing ? 'reveal.js-3.2.0/css/print/pdf.css' : 'reveal.js-3.2.0/css/print/paper.css';
+        document.getElementsByTagName( 'head' )[0].appendChild( link );
+    </script>
+    
+    <!--[if lt IE 9]>
+    <script src="lib/js/html5shiv.js"></script>
+    <![endif]-->
+    
+    <style>
+        table.details td, table.details th { font-size: 24px; }
+        .reveal { 
+            font-size: 30px;
+        }
+        .reveal p, .reveal h5, .reveal h6 {
+            text-align: left;
+            margin: 16px 0;
+        }
+        .reveal ol, .reveal ul {
+            display: block;
+            margin-left: 50px;
+        }
+        .reveal table th,
+        .reveal table td {
+            vertical-align: middle;
+        }
+        .reveal table.plain th,
+        .reveal table.plain td {
+            border: none;
+        }
+        .reveal blockquote {
+            width: 90%;
+        }
+        .reveal pre code {
+            max-height: 600px;
+        }
+        .reveal dfn {
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="reveal">
+    <div class="slides">
+    
+    <section>
+        <h1>Implementing PageRank</h1>
+        <h4>John Roush and Neeraj Rajesh</h4>
+        <h4>CMICH ITC 686 &middot; Fall 2016</h4>
+    </section>
+    
+    <section>
+        <h2>PageRank</h2>
+        <p>A ranking algorithm for network graphs, the core of the Google search engine.</p>
+        <p>Nodes (pages) are ranked recursively by the total <em>rank</em> of nodes that link to them.</p>        
+        $$ R(p_i) = \frac{1 - q}{|p|} + \sum_{p_j \: \in \: LinkTo(p_i)} \frac{ q \cdot R(p_j) }{ |LinkFrom(p_j)| } $$
+        <p>This assumes that more important pages will naturally have more, and more credible incoming links.</p>
+    </section>
+        
+    <section>
+        <h2>History</h2>
+        <p>Published in 1998 by Sergey Brin &amp; Larry Page at Stanford.</p>
+        <p>Influences:</p>
+        <ul>
+            <li>Citation Analysis (Eugene Garfield)</li>
+            <li>HyperSearch (Massimo Marchiori)</li>
+            <li>HITS (Jon Kleinberg)</li>
+        </ul>
+        <p>Stanford Patent rights bought out for 1.8 million Google shares;
+            cashed out in 2005 for $336 million.</p>
+    </section>
+        
+    <section>
+        <h2>Webcrawl Data</h2>
+        <p>Our data drawn from Common Crawl project's open webcrawler.</p>
+        <figure>
+            <img class="plain" src="common-crawl-logo.png">
+            <figcaption><a href="http://commoncrawl.org/">http://commoncrawl.org/</a></figcaption>
+        </figure>
+        <p>We use the Sept. 2016 ("week 36") run:</p>
+        <ul>
+            <li>30,000 chunks</li>
+            <li>Raw data: ~1GB/chunk, total 120TB decompressed</li>
+            <li>Metadata: ~340MB/chunk, total <b>45TB</b> decompressed</li>
+        </ul>
+    </section>
+    
+    <section>
+        <h2>Preprocessing</h2>
+        <p>Extract link graph from page metadata in a 1-stage MR job.</p>
+        <p>For simplicity, coalesce all pages and links to parent domains:</p>
+        <figure><a>example.com/xyz/?hc_ref</a> becomes <a>example.com</a></figure>
+        <h5>Map:</h5>
+        <ol>
+            <li>Stream compressed metadata from Amazon S3 bucket.</li>
+            <li>Decompress and parse one record at a time, in memory.</li>
+            <li>Filter records and extract full outgoing links.</li>
+            <li>Normalize urls to domain names.</li>
+            <li>Output $(dom_{s} \mapsto dom_{t})$ domain pairs.</li>
+        </ol>
+        <h5>Reduce:</h5>
+        <ol>
+            <li>Read $(dom_{s} \mapsto [dom_{t}, \ldots])$.</li>
+            <li>Aggregate (count) links by $dom_{t}$. </li>
+            <li>Output $(dom_{s} \mapsto [(dom_{t}, linkcnt_{t}), \ldots])$.</li>
+        </ol>
+    </section>
+    
+    <section>
+        <h2>PageRank</h2>
+        <p>Implemented in two stages of Map-Reduce</p>
+        <h5>Map 1:</h5>
+        <ol>
+            <li>Read $(dom_{s} \mapsto [(dom_{t}, linkcnt_{t}), \ldots])$.</li>
+            <li>Read $R(dom_{s})$.</li>
+            <li>Output $R(dom_{s})$ if there are no outgoing links.</li>
+        </ol>
+        <h5>Reduce 1:</h5>
+        <ol>
+            <li>Read $[R(dom_{s}), \ldots]$ for all domains w/o outgoing links. </li>
+            <li>Calculate $D = \sum_{s} R(dom_{s})$. </li>
+            <li>Output $D$.</li>
+        </ol>
+    </section>
+    
+    <section>
+        <h2>PageRank</h2>
+        <h5>Map 2:</h5>
+        <ol>
+            <li>Read $(dom_{s} \mapsto [(dom_{t}, linkcnt_{t}), \ldots])$.</li>
+            <li>Read $R(dom_{s})$.</li>
+            <li>Compute $A_{s,t} = R(dom_{s}) \cdot \frac{linkcnt_{t}}{\sum_{i} linkcnt_{i}}$ .</li>
+            <li>Output $(dom_{t} \mapsto A_{s,t})$ .</li>
+        </ol>
+        <h5>Reduce 2:</h5>
+        <ol>
+            <li>Read $(dom_{t} \mapsto [A_{s,t}, \ldots])$</li>
+            <li>Read $D$</li>
+            <li>Read total number of domains $N$</li>
+            <li>Compute $R(dom_t) = \frac{1 - q}{N} + \frac{q \cdot D}{N} + q \cdot \sum_s A_{s,t}$</li>
+            <li>Output $R(dom_t)$, and update.</li>
+        </ol>
+    </section>
+    
+    <section>
+        <h2>Amazon EMR</h2>
+        <p>We used Amazon's <dfn>Elastic Map-Reduce</dfn> framework to run the jobs:</p>
+        <ul>
+            <li>High scalability</li>
+            <li>Free, high bandwidth data transfer to/from Amazon S3 storage</li>
+            <li>Control and reliability</li>
+        </ul>
+    </section>
+    
+    <section>
+        <h2>Results</h2>
+        <h4> pending ... </h4>
+    </section>
+    
+    </div>
+    </div>
+
+    <script src="reveal.js-3.2.0/lib/js/head.min.js"></script>
+    <script src="reveal.js-3.2.0/js/reveal.js"></script>
+    <script>
+        // Full list of configuration options available at:
+        // https://github.com/hakimel/reveal.js#configuration
+        Reveal.initialize({
+            width: 1000,
+            height: 800,
+            margin: 0.02,
+            minScale: 0.2,
+            maxScale: 1.0,
+            controls: true,
+            progress: true,
+            history: true,
+            slideNumber: true,
+            center: true,
+            transition: 'slide',            
+            math: {
+                mathjax: 'https://cdn.mathjax.org/mathjax/latest/MathJax.js',
+                config: 'TeX-AMS_HTML-full'  // See http://docs.mathjax.org/en/latest/config-files.html
+            },
+            dependencies: [
+                { src: 'reveal.js-3.2.0/lib/js/classList.js', condition: function() { return !document.body.classList; } },
+                { src: 'reveal.js-3.2.0/plugin/markdown/marked.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+                { src: 'reveal.js-3.2.0/plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+                { src: 'reveal.js-3.2.0/plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } },
+                { src: 'reveal.js-3.2.0/plugin/zoom-js/zoom.js', async: true },
+                { src: 'reveal.js-3.2.0/plugin/notes/notes.js', async: true },
+                { src: 'reveal.js-3.2.0/plugin/print-pdf/print-pdf.js', async: true },
+                { src: 'reveal.js-3.2.0/plugin/math/math.js', async: true }
+            ]
+        });
+        
+        demoResetQuery();
+        
+        // crude hacks when printing slide deck
+        if (document.printing) {
+            // remove link slide (link is transient)
+            var linkslide = document.getElementById( 'link-slide' );
+            linkslide.parentNode.removeChild(linkslide);
+            // replace embedded iframes with explicit urls
+            for (var el of document.getElementsByTagName("iframe")) {
+                var a = document.createElement("a");
+                a.href = el.src;
+                a.innerHTML = el.src;
+                el.parentNode.replaceChild(a, el);
+            }
+            // annotate links with explicit urls
+            for (var sl of document.getElementsByClassName( 'ref-slide' )) {
+                for (var el of sl.getElementsByTagName("a")) {
+                    el.innerHTML += "<br>" + el.href;
+            }}
+        }
+    </script>
+
+</body>
+</html>
