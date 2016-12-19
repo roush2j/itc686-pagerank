@@ -13,12 +13,20 @@ import boto
 from gzipstream import GzipStreamFile
 from mrjob.job import MRJob
 from mrjob.step import MRStep
+import mrjob.protocol as protocols
 
 class WatLinksJob(MRJob):
   
+  # Set output protocol to capture only raw (unquoted) values
+  # The values in question are keys in our intermediate storage location
+  OUTPUT_PROTOCOL = protocols.RawValueProtocol
+  
   def steps(self):
+    ''' Define the two steps in our pre-processor '''    
     return [
+      # 1. download and parse WAT metadata
       MRStep(mapper=self.mapWat, reducer=self.reduceWat),
+      # 2. batch together and output to a dedicated S3 bucket
       MRStep(reducer=self.reduceS3)
     ]
 
@@ -48,6 +56,7 @@ class WatLinksJob(MRJob):
         if hostlinks: yield hostlinks
       if i % 10000 == 0: print('Record %5dk' % (i/1000))
       self.increment_counter('commoncrawl', 'processed_records', 1)
+    rawstream.close()
       
   def watHostLinks(self, jsonPayload):
     ''' Takes a JSON WARC.WAT payload and extracts (host, {links}) tuple '''
@@ -79,16 +88,31 @@ class WatLinksJob(MRJob):
     
   def reduceS3(self, hosthash, hostlinks):
     ''' Takes a  list of [host, [{links}, {links}, ...]] tuples and store into S3 bucket '''
-    #conn = boto.connect_s3(anon=True)
-    #pds = conn.get_bucket('jroush-pagerank')
-    #rawstream = boto.s3.key.Key(pds, hosthash)
-    yield hosthash
+    # we invoke mrjob's protocol code directly to serialize host+links data
+    serde = protocols.JSONProtocol()
+    content = '\n'.join(serde.write(h, lm) for (h,lm) in hostlinks)
+    keypath = 'linkmap/' + hosthash
+    if self.options.localdest:
+      # Stream output to local file
+      fpath = os.path.abspath(os.path.join(self.options.localdest, keypath))
+      with open(fpath, 'w') as outfile:
+        outfile.write(content)
+    else:
+      # Stream data to dedicated S3 bucket
+      conn = boto.connect_s3(anon=True)
+      pds = conn.get_bucket('jroush-pagerank')
+      upload = boto.s3.key.Key(pds, keypath)
+      upload.set_contents_from_string(content)
+      upload.close()
+    yield (None, keypath)      
     
   def configure_options(self):
     super(WatLinksJob, self).configure_options()
     # define a command-line option for specifying local data path.
     self.add_passthrough_option('-s', '--localsource', action='store', default=None,
       help='Specify a local path prefix to obtain data instead of downloading from the S3 bucket.')
+    self.add_passthrough_option('-d', '--localdest', action='store', default=None,
+      help='Specify a local path prefix to store output instead of uploading to the S3 bucket.')
     
 # Parse host name out of a url
 def parseHost(urlstr):
@@ -112,6 +136,8 @@ if __name__ == '__main__':
   # of processing mrjob options and start switching the local directory around.
   for i in range(1, len(sys.argv) - 1):
     if sys.argv[i] == '-s' or sys.argv[i] == '--localsource':
+      sys.argv[i+1] = os.path.abspath(sys.argv[i+1])
+    if sys.argv[i] == '-d' or sys.argv[i] == '--localdest':
       sys.argv[i+1] = os.path.abspath(sys.argv[i+1])
   # run the job
   WatLinksJob.run()
