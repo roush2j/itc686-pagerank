@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 
 from __future__ import print_function
 import os
@@ -6,15 +6,23 @@ import sys
 from collections import Counter
 import json
 from urlparse import urlparse
+import hashlib
 #
 import warc
 import boto
 from gzipstream import GzipStreamFile
 from mrjob.job import MRJob
+from mrjob.step import MRStep
 
 class WatLinksJob(MRJob):
+  
+  def steps(self):
+    return [
+      MRStep(mapper=self.mapWat, reducer=self.reduceWat),
+      MRStep(reducer=self.reduceS3)
+    ]
 
-  def mapper(self, _, line):
+  def mapWat(self, _, line):
     ''' Takes partial WARC paths and produces (hostname, {links}) pairs '''
     if self.options.localsource:
       # Stream data from local file
@@ -62,12 +70,19 @@ class WatLinksJob(MRJob):
       linkcounts[tgthost] += 1
     return (srchost, linkcounts)
 
-  def reducer(self, host, linkmaps):
+  def reduceWat(self, host, linkmaps):
     ''' Takes a (host, [{links}, {links}, ...]) tuple and merge the link maps '''
     linkcounts = Counter()
     for lm in linkmaps:
       linkcounts.update(lm)
-    if len(linkcounts) > 0: yield host, linkcounts
+    if len(linkcounts) > 0: yield (hash12(host), (host, linkcounts))
+    
+  def reduceS3(self, hosthash, hostlinks):
+    ''' Takes a  list of [host, [{links}, {links}, ...]] tuples and store into S3 bucket '''
+    #conn = boto.connect_s3(anon=True)
+    #pds = conn.get_bucket('jroush-pagerank')
+    #rawstream = boto.s3.key.Key(pds, hosthash)
+    yield hosthash
     
   def configure_options(self):
     super(WatLinksJob, self).configure_options()
@@ -85,6 +100,12 @@ def parseHost(urlstr):
   except Exception as e:
     print(e, file=sys.stderr)
     return None
+
+# 12-bit hash of a string, returned as 3 hex characters
+def hash12(s):
+    m = hashlib.md5()
+    m.update(s.encode('utf-8'))
+    return m.hexdigest()[:3]
 
 if __name__ == '__main__':
   # LOL hack to resolve local path string before we get sucked into the labrinth
