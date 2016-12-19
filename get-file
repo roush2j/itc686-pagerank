@@ -3,7 +3,7 @@
 # stdin should specify the partial path of the file
 # e.g. "crawl-data/CC-MAIN-2016-36/segments/1471982290442.1/wat/CC-MAIN-20160823195810-00000-ip-10-153-172-175.ec2.internal.warc.gz"
 
-read -e path
+read path
 dir=`dirname "$path"`
 echo "$dir"
 mkdir -p "$dir"
