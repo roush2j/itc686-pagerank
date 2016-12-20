@@ -8,10 +8,10 @@ world wide web.  This is helpfully provided by the \define{Common Crawl} project
 which runs an open web crawler that produces a full dump of the web every six
 weeks.
 
-In fact, Common Crawl does even better - they provide a "metadata-only" version of
-their crawl data which contains outgoing links but omits actual page content.
+In fact, Common Crawl does even better - they provide a "metadata-only" version for
+each crawl which contains outgoing links but omits actual page content.
 This greatly reduces the size of the input data set, but even so the full metadata
-weighs in at about \textbf{45 TB}!
+weighs in at about \textbf{11 TB}!
 
 The meta-data is hosted on Amazon S3 in a common internet archival format known 
 as \define{WARC}.  WARC files are compressed text with a simple record schema.
@@ -36,9 +36,9 @@ We turn instead to distributed computation - specifically \define{Map-Reduce} vi
 Apache's \define{Hadoop}.  Map-Reduce has the advantage of being conceptually 
 simple and quite well supported on many computing platforms (including Amazon EMR).
 
-Our implementation of PageRank in MR borrows from M. Nielson \cite{mnielsen}, who
-discusses both the theory and implementation in a very insightful blog post.
-Following his example, we chose to write out implementation in \define{Python}.
+Our implementation of PageRank in MR borrows from M. Nielson, who
+discusses both the theory and implementation in a very insightful blog post \cite{mnielsen}.
+Following his example, we chose to write our implementation in \define{Python}.
 Python offers concise syntax and a very rich library ecosystem, including two
 essential libraries: 
 \begin{itemize}
@@ -57,14 +57,14 @@ Each iteration $n$ actually takes place in two distinct MR jobs:
     The mapper in this job starts with one of the $\approx4000$ group IDs from the 
     preprocessing job.  For each page $p_j$ the group, the mapper reads the 
     link map from the preprocessing job and the intermediate rank value 
-    $R_{n-1}$ from the previous iteration.  The mapper then outputs the partial 
-    total for page count and $R_{n-1}(p_k)$ for each page in the group, and the 
+    $R_{n-1}(p_j)$ from the previous iteration.  The mapper then outputs the partial 
+    total for page count and $R_{n-1}$ for each page in the group, and the 
     reducer computes the full totals.  These are written to a dedicated S3 
     bucket for future reference.
     
 \item Compute the rest of equation \eqref{eqPRfinal}.
     
-    The mapper in this job starts identically to the last one, but he mapper 
+    The mapper in this job starts identically to the mapper in the first job, but 
     outputs $(p_i \mapsto R_{n-1}(p_j) / |LinkFrom(p_j)| )$ tuples for each 
     link target $p_i$ from each page $p_j$ in the group.  The reducer collects
     the partial ranks and sums them, then reads the totals from the first job
@@ -98,8 +98,8 @@ There are two compromises made by our implementation which deserve special note:
 \item We normalize all link URLs to their domain names.  
     This means that we are effectively calculating the PageRank for \emph{domains}, 
     and not for individual web pages.  This is done merely for expedience, to
-    reduce the total data set further.
-\item We compute non-normalized Rank values.  Equation \eqref{eqPRmain}
+    reduce the total size of the data set.
+\item We compute non-normalized rank values.  Equation \eqref{eqPRmain}
     implies that the sum of all PageRanks $R(p_i)$ over all pages $p_i$ is
     equal to $1$, which lends itself to the interpretation of PageRank as a 
     probability.  What we actually calculate at each intermediate step is

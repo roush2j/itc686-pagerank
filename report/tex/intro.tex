@@ -1,6 +1,9 @@
 \begin{abstract} 
-We attempt to implement the PageRank algorithm developed by Google. This will 
-cover how we got the data, steps we took to simplify the code and get results. 
+We attempted to implement the PageRank algorithm developed by Google.  We discuss
+the theory and practice of the algorithm, provide a ready source for web crawl
+data, and the \{dis\}advantages of Amazon cloud services.  We conclude that our
+PageRank implementation is effective, but a full web ranking proved too technically
+challenging.
 \end{abstract}
 
 \section{Introduction}
@@ -12,7 +15,7 @@ results:
 \item When a query is submitted, identify and rank all of the pages containing the query terms.
 \end{enumerate}
 \define{PageRank} is a link analysis algorithm that assigns numerical weights 
-to URLs in mutually linked set of documents, informed the number of links 
+to URLs in mutually linked set of documents, based on the number of links 
 \emph{to} a document and the PageRank of the link sources.  These weights provide 
 a starting point for ranking the pages on the web.
 The underlying assumption is that more important websites are likely to receive 

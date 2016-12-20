@@ -24,7 +24,7 @@ computationally tractable) to consider it as an iterative relaxation algorithm \
 \end{equation}
 
 where $R_{n+1}$ is calculated from $R_n$ until its value converges for all pages.
-In practice, it is probably enough to simply run a fixed number (~70) of iterations.
+In practice, it is probably enough to simply run a fixed number ($\approx 70$) of iterations.
 Note also the variable $q \in [0,1]$: a "damping" factor that affects the rate of 
 convergence and the numerical stability of the iterative version of the algorithm.
 
@@ -54,7 +54,7 @@ Furthermore, we can interpret the PageRank $R(p_i)$ as the total probability tha
 the random surfer will visit page $p_i$ during some sufficiently long time period \cite{efactory}.
 
 There is one more insight to glean from this model: what about pages with no
-\emph{outgoing} links?  The surfer would become stuck here, unable to proceed with
+\emph{outgoing} links?  The surfer would become stuck, unable to proceed with
 probability $q$.  We can adjust the model so that when the surfer encounters such
 a "dead" page, they will \emph{always} jump to another random page.  This guarantees
 that the surfer can leave any page with probability $1$ \cite{mnielsen}:
