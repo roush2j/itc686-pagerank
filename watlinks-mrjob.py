@@ -91,10 +91,13 @@ class WatLinksJob(MRJob):
     # we invoke mrjob's protocol code directly to serialize host+links data
     serde = protocols.JSONProtocol()
     content = '\n'.join(serde.write(h, lm) for (h,lm) in hostlinks)
-    keypath = 'linkmap/' + hosthash[0] + '/' + hosthash[1:3]
+    hostgroup = hosthash[0] + '/' + hosthash[1:3]
+    keypath = 'linkmap/' + hostgroup
     if self.options.localdest:
       # Stream output to local file
       fpath = os.path.abspath(os.path.join(self.options.localdest, keypath))
+      fdir = os.path.dirname(fpath)
+      if not os.path.exists(fdir): os.makedirs(fdir)
       with open(fpath, 'w') as outfile:
         outfile.write(content)
     else:
@@ -104,7 +107,7 @@ class WatLinksJob(MRJob):
       upload = boto.s3.key.Key(pds, keypath)
       upload.set_contents_from_string(content)
       upload.close()
-    yield (None, keypath)      
+    yield (None, hostgroup)      
     
   def configure_options(self):
     super(WatLinksJob, self).configure_options()
