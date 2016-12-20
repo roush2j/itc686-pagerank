@@ -21,3 +21,6 @@
 # Python environment
 env/
 *.pyc
+
+# Security credentials
+emr-keys.*
