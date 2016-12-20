@@ -41,8 +41,7 @@ class WatLinksJob(MRJob):
       rawstream = open(fpath, 'rb')
     else:
       # Stream data from common crawl servers
-      print('Streaming from Amazon S3 bucket: ' + line)
-      conn = boto.connect_s3(anon=True)
+      conn = boto.connect_s3(anon=True, host='s3.amazonaws.com')
       pds = conn.get_bucket('commoncrawl')
       rawstream = boto.s3.key.Key(pds, line)
       
@@ -54,7 +53,8 @@ class WatLinksJob(MRJob):
         jsonPayload = json.loads(payload)
         hostlinks = self.watHostLinks(jsonPayload)
         if hostlinks: yield hostlinks
-      if i % 10000 == 0: print('Record %5dk' % (i/1000))
+      if self.options.localsource and i % 10000 == 0: 
+        print('Record %5dk' % (i/1000))
       self.increment_counter('commoncrawl', 'processed_records', 1)
     rawstream.close()
       
@@ -99,7 +99,7 @@ class WatLinksJob(MRJob):
         outfile.write(content)
     else:
       # Stream data to dedicated S3 bucket
-      conn = boto.connect_s3(anon=True)
+      conn = boto.connect_s3(anon=True, host='s3.us-east-2.amazonaws.com')
       pds = conn.get_bucket('jroush-pagerank')
       upload = boto.s3.key.Key(pds, keypath)
       upload.set_contents_from_string(content)
@@ -122,7 +122,7 @@ def parseHost(urlstr):
     if url.hostname == None: return None
     else: return url.hostname
   except Exception as e:
-    print(e, file=sys.stderr)
+    if self.options.localdest: print(e, file=sys.stderr)
     return None
 
 # 12-bit hash of a string, returned as 3 hex characters
