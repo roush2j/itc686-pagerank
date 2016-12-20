@@ -91,7 +91,7 @@ class WatLinksJob(MRJob):
     # we invoke mrjob's protocol code directly to serialize host+links data
     serde = protocols.JSONProtocol()
     content = '\n'.join(serde.write(h, lm) for (h,lm) in hostlinks)
-    keypath = 'linkmap/' + hosthash
+    keypath = 'linkmap/' + hosthash[0] + '/' + hosthash[1:3]
     if self.options.localdest:
       # Stream output to local file
       fpath = os.path.abspath(os.path.join(self.options.localdest, keypath))
