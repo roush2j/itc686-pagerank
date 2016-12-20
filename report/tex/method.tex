@@ -1,0 +1,109 @@
+\section{Implementation} \label{sec:impl}
+
+We aimed to implement the PageRank algorithm as described in equation \eqref{eqPRfinal}.
+    
+\subsection{Common Crawl}
+To compute the PageRank we needed to obtain the full link schematic for the 
+world wide web.  This is helpfully provided by the \define{Common Crawl} project,
+which runs an open web crawler that produces a full dump of the web every six
+weeks.
+
+In fact, Common Crawl does even better - they provide a "metadata-only" version of
+their crawl data which contains outgoing links but omits actual page content.
+This greatly reduces the size of the input data set, but even so the full metadata
+weighs in at about \textbf{45 TB}!
+
+The meta-data is hosted on Amazon S3 in a common internet archival format known 
+as \define{WARC}.  WARC files are compressed text with a simple record schema.
+The data set is split into about 30,000 of these files, and our first task was
+to download them and isolate the link structure in a more concise format.
+
+This was achieved with two stages of Map-Reduce computation.  In the first stage,
+individual WARC files are downloaded, decompressed in memory, and parsed to
+extract the crawl results of individual pages $p_j$.  Outgoing links are 
+extracted, and all URLs are normalized to simple domain names.
+The output of the first stage mapper is a series of $(p_j \mapsto p_i)$ 
+domain tuples, one per link.  The reducer in this stage then counts all unique
+$(p_j \mapsto p_i)$ pairs and collects them by unique $p_j$. 
+
+In the second MR stage, source domains are broken up into about $4000$ groups using
+a deterministic hash, and each group is stored separately in a dedicated Amazon
+S3 bucket for further processing.
+
+\subsection{MapReduce, Hadoop Streaming, and MRJob}
+Due to the size of the data set, we cannot process it serially on one machine.
+We turn instead to distributed computation - specifically \define{Map-Reduce} via 
+Apache's \define{Hadoop}.  Map-Reduce has the advantage of being conceptually 
+simple and quite well supported on many computing platforms (including Amazon EMR).
+
+Our implementation of PageRank in MR borrows from M. Nielson \cite{mnielsen}, who
+discusses both the theory and implementation in a very insightful blog post.
+Following his example, we chose to write out implementation in \define{Python}.
+Python offers concise syntax and a very rich library ecosystem, including two
+essential libraries: 
+\begin{itemize}
+\item \define{MRjob}, a framework for writing MR jobs on top of the Hadoop Streaming interface.
+\item \define{boto}, a powerful library for interacting with Amazon S3 data storage.
+\end{itemize}
+
+As discussed in Section \ref{sec:theory}, our implementation of PageRank is 
+iterative, with each successive iteration pushing the intermediate rank values 
+closer to the true PageRank value for each page. 
+Each iteration $n$ actually takes place in two distinct MR jobs:
+\begin{enumerate}
+\item Compute the first and third terms of equation \eqref{eqPRfinal} (the total 
+    number of pages and the contribution to each page from "dead-end" pages).
+
+    The mapper in this job starts with one of the $\approx4000$ group IDs from the 
+    preprocessing job.  For each page $p_j$ the group, the mapper reads the 
+    link map from the preprocessing job and the intermediate rank value 
+    $R_{n-1}$ from the previous iteration.  The mapper then outputs the partial 
+    total for page count and $R_{n-1}(p_k)$ for each page in the group, and the 
+    reducer computes the full totals.  These are written to a dedicated S3 
+    bucket for future reference.
+    
+\item Compute the rest of equation \eqref{eqPRfinal}.
+    
+    The mapper in this job starts identically to the last one, but he mapper 
+    outputs $(p_i \mapsto R_{n-1}(p_j) / |LinkFrom(p_j)| )$ tuples for each 
+    link target $p_i$ from each page $p_j$ in the group.  The reducer collects
+    the partial ranks and sums them, then reads the totals from the first job
+    and computes the new rank $R_n(p_i)$ for each page $p_i$ according to
+    equation \eqref{eqPRfinal}.
+    
+    This job has an additional stage to group pages $p_i$, using the same 
+    deterministic hash from the preprocessing job.  The new rank values are 
+    then written to a dedicated S3 bucket for the next iteration.
+\end{enumerate}
+
+\subsection{Amazon S3 and EMR}
+We chose Amazon's \define{Elastic Map-Reduce} platform to run our MR jobs.
+EMR has some advantages over our other options - in particular, we have root
+access to each node in our cluster.  This crucially allowed us to install 
+dependencies and monitor logs, which helped greatly with debugging.  Another
+significant advantage of EMR is that, as a cloud service, it provides
+much greater horizontal scaling potential than any homegrown computing cluster.
+Finally, Amazon provides free, optimized data transfer to and from their S3 
+storage service for all jobs running on EMR.  The Common Crawl data set is hosted
+on S3, and we elected to store our intermediate results there as well, meaning
+most data transfer had minimal performance and financial cost.
+
+Unfortunately, many of these advantages of EMR took far more work to realize than
+we had first anticipated.  These problems are discussed further in Section \ref{sec:results}.
+
+\subsection{Caveats}
+There are two compromises made by our implementation which deserve special note:
+
+\begin{enumerate}
+\item We normalize all link URLs to their domain names.  
+    This means that we are effectively calculating the PageRank for \emph{domains}, 
+    and not for individual web pages.  This is done merely for expedience, to
+    reduce the total data set further.
+\item We compute non-normalized Rank values.  Equation \eqref{eqPRmain}
+    implies that the sum of all PageRanks $R(p_i)$ over all pages $p_i$ is
+    equal to $1$, which lends itself to the interpretation of PageRank as a 
+    probability.  What we actually calculate at each intermediate step is
+    $R(p_i) \cdot |Pages|$.  This multiplication by a constant makes no 
+    fundamental difference to the results, but does simplify the implementation
+    considerably.
+\end{enumerate}

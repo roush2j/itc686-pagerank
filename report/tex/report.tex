@@ -1,0 +1,43 @@
+\documentclass[11pt,letterpaper]{scrartcl}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage[pdfborder={0 0 0}]{hyperref}
+\usepackage{color}
+\usepackage{xcolor,colortbl}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{hyperref}
+
+\newcommand{\define}[1]{\textbf{\textit{#1}}}
+\newcommand{\needcite}{\textcolor{red}{\tiny [CITATION NEEDED]}}
+
+\date{}
+\title{PageRank}
+\subtitle{Using MapReduce and Hadoop.}
+\author{Neeraj Rajesh, John Roush \\
+		\\
+		Department of Computer Science \\
+		Central Michigan University \\
+		Mount Pleasant, Michigan  48859 \\
+		\{rajes1n, roush2j\}@cmich.edu}
+\begin{document} 
+
+\maketitle 
+
+\input{tex/intro.tex}
+
+\input{tex/history.tex}
+
+\input{tex/theory.tex}
+
+\input{tex/method.tex}
+
+\input{tex/results.tex}
+
+\bibliographystyle{acm-sig}
+\bibliography{sources}  
+
+\end{document}

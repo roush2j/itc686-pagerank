@@ -21,3 +21,13 @@
 # Python environment
 env/
 *.pyc
+
+# Intermediates for reports
+report/*.bbl
+report/*.blg
+report/*.aux
+report/*.log
+report/*.out
+report/*.cls
+slides/reveal.js*
+
