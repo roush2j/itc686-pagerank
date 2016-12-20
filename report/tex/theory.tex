@@ -1,0 +1,66 @@
+\section{Theory} \label{sec:theory}
+\newcommand{\vect}[1]{\boldsymbol{#1}}
+\newcommand{\expc}[1]{\left< #1 \right>}
+
+According to Google's fact sheet,
+\begin{quote} 
+PageRank works by counting the number and quality of links to a page to 
+determine a rough estimate of how important the website is \cite{googlequote}. 
+\end{quote}
+
+Formally, the PageRank $R$ of a page $p_i \in Pages$ is defined as:
+
+\begin{equation}\label{eqPRmain}
+    R(p_i) = \frac{1 - q}{|Pages|} + \sum_{p_j \: \in \: LinkTo(p_i)} \frac{ q \cdot R(p_j) }{ |LinkFrom(p_j)| }
+\end{equation}
+    
+Note the recursive definition; the PageRank of any page depends on the PageRank
+of all pages that link to it.  This recurrence can be solved for directly via 
+matrix diagonalization techniques, but it is more intuitive (and more 
+computationally tractable) to consider it as an iterative relaxation algorithm \cite{efactory}:
+
+\begin{equation}\label{eqPRiter}
+    R_{n+1}(p_i) = \frac{1 - q}{|Pages|} + \sum_{p_j \: \in \: LinkTo(p_i)} \frac{ q \cdot R_n(p_j) }{ |LinkFrom(p_j)| }
+\end{equation}
+
+where $R_{n+1}$ is calculated from $R_n$ until its value converges for all pages.
+In practice, it is probably enough to simply run a fixed number ($\approx 70$) of iterations.
+Note also the variable $q \in [0,1]$: a "damping" factor that affects the rate of 
+convergence and the numerical stability of the iterative version of the algorithm.
+
+\subsection{The Random Surfer Model} \label{sec:armodel}
+The original model used by Page and Brin was that of a "random web surfer".
+The surfer visits a page and clicks links at random, regardless of the content
+of the page or the context of the link (and thus each outgoing link is selected
+with uniform probability).  
+
+The surfer occasionally gets bored and jumps to random page.  
+In this way each page has some small but non-zero probability of being visited,
+even if no other pages link to it.  In practice, pages with no inbound links are
+hard to discover during crawling, so nearly all pages will have at least some
+inbound links.  The random jumping, however, does guarantee a minimum PageRank
+for any page \cite{efactory}. 
+We can see this in the first term of equation \eqref{eqPRmain}:
+
+\begin{equation}\label{eqPRmin}
+    R_{min}(p_i) = \frac{1 - q}{|Pages|}
+\end{equation}
+
+We can interpret the quantity $(1 - q)$ as the probability that the surfer will
+get bored and jump randomly, and thus the damping factor $q$ is the probability 
+that the surfer will follow a link instead.
+
+Furthermore, we can interpret the PageRank $R(p_i)$ as the total probability that
+the random surfer will visit page $p_i$ during some sufficiently long time period \cite{efactory}.
+
+There is one more insight to glean from this model: what about pages with no
+\emph{outgoing} links?  The surfer would become stuck, unable to proceed with
+probability $q$.  We can adjust the model so that when the surfer encounters such
+a "dead" page, they will \emph{always} jump to another random page.  This guarantees
+that the surfer can leave any page with probability $1$ \cite{mnielsen}:
+
+\begin{equation}\label{eqPRfinal}
+    R_{n+1}(p_i) = \frac{1 - q}{|Pages|} + \sum_{p_j \: \in \: LinkTo(p_i)} \frac{ q \cdot R_n(p_j) }{ |LinkFrom(p_j)| }  + \sum_{p_k \: \in \: DeadPages} \frac{ q \cdot R_n(p_k) }{ |Pages| } 
+\end{equation}
+
+Equation \eqref{eqPRfinal} is the algorithm actually implemented in our code.

@@ -1,0 +1,27 @@
+\section{Implementation} \label{sec:results}
+
+The full source code (including the source of this report) is available on github
+at:
+
+\url{https://github.com/roush2j/itc686-pagerank}
+
+The intermediate results from our attempted runs are available on S3 (in machine-browsable form only):
+
+\url{http://s3.us-east-2.amazonaws.com/jroush-pagerank/}
+
+Unfortunately, we do not have full results available.  As discussed in Section
+\ref{sec:impl}, running our MR jobs on Amazon EMR proved far more challenging
+than expected.  We eventually solved the arcane configuration issues - but it turns
+out that Amazon tightly caps the horizontal scalability of their clusters, and
+they declined to offer us an exception.  Thus, EMR turned out to be not much
+faster than a single machine for our purposes.  Consequently, we were unable to
+complete the full preprocessing step or a full PageRank iteration.
+
+We did, however, run several iterations of PageRank on a reduced subset on the
+full web crawl data.  This validated our implementation and provides some
+tangible results.  Because the subset was quite small, however, the majority of 
+pages in it simply do not link to each other - not a very interesting web
+structure.
+
+In conclusion, then, our implementation appears to be correct, but technical 
+factors and time limitations prevented it from being full utilized.
